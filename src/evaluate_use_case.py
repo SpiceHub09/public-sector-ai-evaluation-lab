@@ -1,29 +1,30 @@
-from retrieve import retrieve_relevant_chunks
-from chunk_document import chunks
+from semantic_retrieve import semantic_retrieve
 
 
 def build_search_query(use_case):
     """
-    Turn an agency AI use case into a focused search query.
+    Turn an agency AI use case into a focused semantic search query.
 
-    In my first version, I combined almost every part of the use case
-    into the search query.
+    V1 of my prototype used keyword matching to retrieve relevant
+    sections of the government AI assurance framework.
 
-    After testing the retrieval results, I found that this introduced
-    too many broad words such as "government", "policy" and "internal".
-    These words appeared frequently throughout the document and could
-    make irrelevant sections look more important than they really were.
+    Testing showed that this could miss relevant guidance when the
+    use case and the framework expressed the same idea using different
+    words.
 
-    For this version, I want the search to focus more heavily on the
-    actual AI capability and the assurance concerns I need to investigate.
+    For example, the concern "accuracy" did not retrieve framework
+    guidance about incorrect outputs, reliability, testing or validation.
+
+    V2 therefore uses semantic retrieval so the search can consider
+    similarity of meaning rather than relying only on exact words.
     """
 
-    # Use the type of AI system together with the specific risks and
-    # assurance issues I want to investigate.
+    # Combine the description of the AI system with the concerns
+    # identified for the use case.
     #
-    # I'm deliberately leaving out the broader agency description,
-    # purpose and data fields for now because they contain many generic
-    # words that do not help distinguish relevant policy sections.
+    # These provide the semantic retriever with information about
+    # both what the system does and what assurance issues need
+    # investigation.
     query = (
         f"{use_case['ai_system']} "
         f"{use_case['concerns']}"
@@ -32,27 +33,32 @@ def build_search_query(use_case):
     return query
 
 
-def gather_policy_evidence(use_case, policy_chunks, top_k=6):
+def gather_policy_evidence(use_case, policy_chunks=None, top_k=6):
     """
-    Retrieve the parts of the government AI assurance framework
-    that are most relevant to a proposed agency AI use case.
+    Retrieve government guidance that is semantically relevant
+    to the proposed AI use case.
 
-    I want the assessment to be grounded in published government
-    guidance rather than relying only on a language model's
-    general knowledge.
+    The policy_chunks argument is retained for compatibility with
+    the existing application structure, but V2 semantic retrieval
+    already works with the policy chunks prepared in
+    semantic_retrieve.py.
+
+    I retrieve a small number of strong matches rather than passing
+    the entire framework into the assessment process.
     """
 
-    # First, turn the agency use case into a focused search query.
-    query = build_search_query(use_case)
+    # Turn the agency scenario into a semantic search query.
+    query = build_search_query(
+        use_case
+    )
 
-    # Search the policy chunks and keep only the strongest matches.
+    # Search the government framework using embeddings.
     #
-    # I'm retrieving six sections for now because I want enough
-    # evidence to cover different assurance issues without using
-    # the entire framework.
-    evidence = retrieve_relevant_chunks(
+    # Unlike V1 keyword retrieval, this can find relevant guidance
+    # even where the wording differs from the terminology supplied
+    # by the user.
+    evidence = semantic_retrieve(
         query=query,
-        chunks=policy_chunks,
         top_k=top_k,
     )
 
@@ -63,15 +69,11 @@ def gather_policy_evidence(use_case, policy_chunks, top_k=6):
 # SAMPLE AGENCY USE CASE
 # ---------------------------------------------------------
 #
-# I'm starting with a fictional health-sector scenario.
+# I keep a fictional health-sector scenario available for
+# testing individual components of the application.
 #
-# This reflects the type of assignment a public-sector AI team
-# could receive: an agency already has an idea for an AI solution
-# and needs technical and assurance support before using it.
-#
-# Keeping the scenario as structured data also means I can later
-# replace it with other agency use cases without changing the
-# underlying retrieval and assessment logic.
+# run_assessment.py can supply completely different scenarios
+# without changing the underlying assessment code.
 
 
 use_case = {
@@ -94,36 +96,28 @@ use_case = {
 }
 
 
-# Retrieve government guidance relevant to this proposed AI system.
-#
-# Other parts of the application can import this evidence and use it
-# without needing to repeat the retrieval process themselves.
+# Retrieve semantically relevant government guidance for the
+# sample health-sector scenario.
 evidence = gather_policy_evidence(
     use_case=use_case,
-    policy_chunks=chunks,
 )
 
 
 # ---------------------------------------------------------
-# TEST THE USE-CASE EVALUATION
+# TEST V2 RETRIEVAL
 # ---------------------------------------------------------
 #
-# I only want this detailed preview to appear when I execute
-# evaluate_use_case.py directly.
+# I only want this detailed preview when I execute this file
+# directly.
 #
-# assess_use_case.py imports use_case and evidence from this file.
-# Without this check, the entire retrieval preview would print every
-# time another part of the application imported those variables.
-#
-# Using __name__ == "__main__" lets me keep the manual test available
-# while separating it from the reusable application logic.
+# Other parts of the application can import use_case and evidence
+# without printing the retrieval results.
 
 
 if __name__ == "__main__":
 
-    # Display the agency scenario I'm evaluating.
     print("\n" + "=" * 70)
-    print("AI USE CASE")
+    print("AI USE CASE - SEMANTIC RETRIEVAL")
     print("=" * 70)
 
     print(f"\nAgency: {use_case['agency']}")
@@ -131,13 +125,8 @@ if __name__ == "__main__":
     print(f"Purpose: {use_case['purpose']}")
     print(f"Data: {use_case['data']}")
 
-    # Display the policy evidence retrieved for this scenario.
-    #
-    # I want to be able to inspect these results manually because
-    # retrieval quality directly affects the quality of any
-    # assessment built from this evidence.
     print("\n" + "=" * 70)
-    print("RETRIEVED POLICY EVIDENCE")
+    print("SEMANTICALLY RETRIEVED POLICY EVIDENCE")
     print("=" * 70)
 
     for result in evidence:
@@ -145,9 +134,9 @@ if __name__ == "__main__":
         print("\n" + "-" * 70)
 
         print(
+            f"Similarity: {result['score']:.3f} | "
             f"Page: {result['page_number']} | "
-            f"Chunk: {result['chunk_number']} | "
-            f"Retrieval score: {result['score']}"
+            f"Chunk: {result['chunk_number']}"
         )
 
         print("\n" + result["text"])

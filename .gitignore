@@ -57,3 +57,6 @@ outputs/*.md
 # Public source documents used locally are not committed to the
 # repository. The README identifies the source used by the prototype.
 data/*.pdf
+
+# Temporary embedding learning experiment
+src/test_embeddings.py

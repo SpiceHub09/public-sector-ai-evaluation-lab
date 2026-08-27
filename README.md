@@ -1,8 +1,10 @@
 # Public Sector AI Evaluation Lab
 
-A lightweight prototype for exploring how public-sector AI use cases can be assessed against government AI assurance guidance.
+A Python prototype for exploring how public-sector AI use cases can be assessed against government AI assurance guidance.
 
-The project takes a proposed AI use case, identifies potentially relevant assurance areas, retrieves supporting evidence from the **National Framework for the Assurance of Artificial Intelligence in Government**, and produces a structured assessment report with practical next actions and source references.
+The project takes a proposed AI use case, identifies potentially relevant assurance areas, uses semantic retrieval to find supporting evidence from the **National Framework for the Assurance of Artificial Intelligence in Government**, and produces a structured assessment report with practical next actions and traceable source references.
+
+The project was developed iteratively: V1 established a transparent keyword-based retrieval baseline, while V2 introduced sentence embeddings after testing showed that keyword matching could miss conceptually relevant policy evidence.
 
 ![Example AI assurance assessment](assets/western_power_assessment_preview.png)
 
@@ -41,7 +43,7 @@ The prototype then:
 
 ## Current Assurance Areas
 
-V1 considers five areas:
+The prototype considers five assurance areas:
 
 - Privacy and security
 - Reliability and testing
@@ -71,27 +73,29 @@ Government AI Assurance Framework (PDF)
                 v
      Page-aware text chunking
                 |
-                +----------------------+
-                                       |
-User-supplied AI use case              |
-        |                              |
-        v                              |
-Identify relevant assurance areas      |
-        |                              |
-        +------------------------------+
-                       |
-                       v
-              Policy retrieval
-                       |
-                       v
-           Evidence classification
-                       |
-                       v
-          Structured assessment
-                       |
-                       v
-          Markdown report output
-```
+                v
+      Sentence embeddings
+                |
+                +-----------------------+
+                                        |
+User-supplied AI use case               |
+        |                               |
+        v                               |
+Identify relevant assurance areas       |
+        |                               |
+        +-------------------------------+
+                        |
+                        v
+              Semantic retrieval
+                        |
+                        v
+            Evidence classification
+                        |
+                        v
+             Structured assessment
+                        |
+                        v
+             Markdown report output
 
 ## Project Structure
 
@@ -162,6 +166,40 @@ I deliberately started with simple, transparent logic so I could inspect how eac
 
 During development, I tested the prototype against contrasting scenarios.
 
+### V1 to V2: Improving Retrieval
+
+The first version of the prototype used transparent keyword matching to retrieve evidence from the assurance framework.
+
+Testing identified an important limitation.
+
+In a public-document summarisation scenario, `accuracy` was supplied as the primary concern. The prototype correctly identified **Reliability and testing** as a relevant assurance area, but V1 keyword retrieval returned no supporting policy evidence.
+
+This happened because relevant sections of the framework discussed concepts such as **incorrect outputs, reliability, testing and validation** rather than necessarily using the exact word `accuracy`.
+
+V2 introduced semantic retrieval using sentence embeddings.
+
+I tested both retrieval approaches against the same query:
+
+**Query:** `accuracy`
+
+**V1 — keyword retrieval**
+
+> No policy evidence retrieved.
+
+**V2 — semantic retrieval**
+
+The highest-ranked results included:
+
+- guidance requiring incorrect AI outputs to be flagged and addressed
+- guidance covering reliability, testing, technical validation and human validation
+
+This demonstrated that semantic retrieval could identify conceptually relevant evidence even when the terminology used by the user differed from the terminology used in the framework.
+
+The original keyword retriever remains in the repository as a baseline, and `compare_retrieval.py` can be used to compare the two approaches.
+
+This iteration reflects a deliberate design approach: introduce additional technical complexity only where testing demonstrates that it addresses an observed limitation.
+
+
 ### Health AI agent
 
 A fictional health-sector use case involved a generative AI agent answering staff questions from internal clinical and operational policy documents.
@@ -195,11 +233,11 @@ This improved the transparency of the assessment and allowed the prototype to di
 
 Page and chunk metadata are retained throughout the pipeline so assessment findings can be traced back to their source material.
 
-### Transparent V1 logic
+### Transparent and modular logic
 
-V1 deliberately uses rule-based category identification and keyword retrieval.
+Assurance-area identification remains deliberately rule-based so the factors triggering each category are transparent and easy to inspect.
 
-This makes the behaviour easy to inspect, test and explain while providing a baseline for evaluating more sophisticated approaches.
+Policy retrieval evolved from V1 keyword matching to V2 semantic retrieval using sentence embeddings. The original keyword retriever remains available as a baseline for comparison.
 
 ### Human review
 
@@ -214,8 +252,8 @@ This is an exploratory prototype rather than a production assurance system.
 Current limitations include:
 
 - assurance categories are identified using predefined rule-based indicators
-- retrieval uses keyword matching rather than semantic search
-- relevant policy material may be missed where terminology differs
+- semantic retrieval may still miss or imperfectly rank relevant policy material
+- semantic similarity does not guarantee substantive relevance
 - retrieved chunks may be only partially relevant
 - recommendations are predefined rather than generated dynamically
 - the current prototype uses one primary assurance framework
@@ -228,7 +266,6 @@ Outputs should therefore be treated as prompts for further investigation rather 
 
 Potential next iterations include:
 
-- semantic retrieval using embeddings
 - vector-based document search
 - support for multiple government policies and technical standards
 - LLM-assisted analysis grounded in retrieved evidence
@@ -242,23 +279,30 @@ Potential next iterations include:
 
 ## Technology
 
-Current V1:
+Current V2:
 
 - Python
 - pypdf
-- regular expressions
-- rule-based classification
-- keyword retrieval
+- sentence-transformers
+- PyTorch
+- sentence embeddings
+- semantic similarity retrieval
+- rule-based assurance classification
 - Markdown report generation
+- pytest
 
-The architecture is intentionally modular so individual components can be replaced as the prototype evolves.
+The architecture is intentionally modular.
 
-For example, keyword retrieval could later be replaced with semantic embeddings without redesigning the document-ingestion or reporting components.
+V1's keyword retriever remains available as a baseline, while V2 uses a locally running sentence-transformer model to retrieve evidence based on semantic similarity.
+
+The embedding model runs locally, so the current prototype does not require a paid LLM or embedding API.
 
 ## Status
 
-**V1 — functional prototype**
+**V2 — semantic retrieval prototype**
 
-The current version can accept different public-sector AI scenarios, identify relevant assurance considerations, retrieve supporting government guidance and generate a structured assessment report.
+V1 established the end-to-end assessment pipeline using transparent keyword retrieval.
+
+V2 introduces local sentence embeddings and semantic retrieval, improving the prototype's ability to find relevant government guidance when the wording of an AI use case differs from the terminology used in the source framework.
 
 The project is intended as a learning and experimentation environment for public-sector AI evaluation, assurance and responsible implementation.

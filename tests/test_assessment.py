@@ -130,3 +130,52 @@ def test_missing_evidence_is_not_treated_as_no_risk():
         reliability_result["status"]
         == "Relevant - evidence not retrieved"
     )
+
+def test_semantic_retrieval_finds_accuracy_evidence():
+    """
+    Check that V2 semantic retrieval can find relevant policy
+    evidence for an accuracy concern.
+
+    I added this test because V1 keyword retrieval returned no
+    evidence when the query was simply "accuracy".
+
+    V2 should recognise that accuracy is conceptually related to
+    framework guidance about incorrect outputs, reliability,
+    testing and validation, even when the exact word "accuracy"
+    is not present.
+    """
+
+    # Import the V2 semantic retrieval function here so this test
+    # specifically evaluates the new retrieval approach.
+    from semantic_retrieve import semantic_retrieve
+
+    # Use the same query that exposed the limitation in V1.
+    results = semantic_retrieve(
+        query="accuracy",
+        top_k=5,
+    )
+
+    # The semantic retriever should return policy evidence.
+    assert len(results) > 0
+
+    # Combine the retrieved text so I can check whether the
+    # results contain concepts relevant to reliability and testing.
+    retrieved_text = " ".join(
+        result["text"].lower()
+        for result in results
+    )
+
+    # I expect the retrieved evidence to contain at least one
+    # concept associated with reliability or testing.
+    expected_concepts = [
+        "incorrect",
+        "reliability",
+        "reliable",
+        "testing",
+        "validation",
+    ]
+
+    assert any(
+        concept in retrieved_text
+        for concept in expected_concepts
+    )

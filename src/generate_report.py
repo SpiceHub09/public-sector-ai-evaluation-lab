@@ -15,9 +15,9 @@ def generate_markdown_report(assessment):
       retrieved, and
     - assurance areas that were not triggered by the supplied use case.
 
-    This makes the report easier to interpret and avoids presenting
-    recommendations for areas that the prototype did not identify as
-    relevant.
+    V2 also uses semantic retrieval to find policy evidence based on
+    similarity of meaning rather than relying only on exact keyword
+    matches.
     """
 
     # I'll build the report one section at a time and store each
@@ -157,14 +157,15 @@ def generate_markdown_report(assessment):
             # retrieved, I want to distinguish this from the category
             # simply being irrelevant.
             #
-            # This also highlights a limitation of the current
-            # keyword-based retrieval process.
+            # Even with semantic retrieval, failure to retrieve
+            # evidence does not mean that relevant guidance does
+            # not exist.
             else:
 
                 report_lines.append(
                     "This assurance area was identified as relevant, "
                     "but supporting evidence was not retrieved by the "
-                    "current keyword-based retrieval process."
+                    "current semantic retrieval process."
                 )
 
         report_lines.append("")
@@ -183,20 +184,29 @@ def generate_markdown_report(assessment):
     report_lines.append("## Prototype Limitations")
     report_lines.append("")
 
+    # V2 still uses transparent rules to determine which assurance
+    # categories appear relevant to the supplied use case.
     report_lines.append(
         "- Assurance areas are currently identified using transparent "
         "rule-based indicators rather than a trained AI classifier."
     )
 
+    # V2 improves policy retrieval by using semantic embeddings.
+    #
+    # This means the system can find conceptually related guidance
+    # even when the user's terminology differs from the wording
+    # used in the framework.
+    #
+    # However, semantic similarity is not the same as guaranteed
+    # substantive relevance.
     report_lines.append(
-        "- Retrieval currently uses keyword matching rather than "
-        "semantic embeddings."
+        "- Policy evidence is retrieved using semantic embeddings, "
+        "but relevant guidance may still be missed or ranked imperfectly."
     )
 
     report_lines.append(
-        "- Relevant policy material may therefore be missed if the "
-        "terminology in the use case differs from the terminology "
-        "used in the framework."
+        "- Semantic similarity does not guarantee substantive relevance; "
+        "retrieved evidence should still be reviewed by a person."
     )
 
     report_lines.append(
@@ -204,9 +214,18 @@ def generate_markdown_report(assessment):
         "partially relevant to the use case."
     )
 
+    # Recommendations remain deterministic in V2.
+    #
+    # I have not yet introduced a language model to generate
+    # tailored recommendations from the retrieved evidence.
     report_lines.append(
         "- Recommended actions are generated using predefined "
         "rule-based guidance rather than a language model."
+    )
+
+    report_lines.append(
+        "- The prototype currently uses one primary government "
+        "AI assurance framework as its evidence source."
     )
 
     report_lines.append(
