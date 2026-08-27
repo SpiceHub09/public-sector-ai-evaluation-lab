@@ -1,11 +1,15 @@
-from chunk_document import chunks
-from evaluate_use_case import gather_policy_evidence
-from assess_use_case import (
-    identify_relevant_categories,
-    classify_evidence,
-    build_assessment,
+from semantic_retrieve import semantic_retrieve
+
+from llm_assessment import (
+    generate_llm_assessment,
+    validate_source_ids,
+    attach_source_evidence,
 )
-from generate_report import generate_markdown_report, save_report
+
+from generate_rag_report import (
+    generate_rag_markdown_report,
+    save_rag_report,
+)
 
 
 def get_use_case_from_user():
@@ -13,14 +17,8 @@ def get_use_case_from_user():
     Collect information about an AI use case from the person
     running the prototype.
 
-    Until now, I've used a hard-coded health-sector example to
-    develop and test the assessment pipeline.
-
-    I now want the same prototype to work with different AI problems
-    from different agencies without changing the source code each time.
-
-    This makes the tool more representative of a public-sector AI
-    team that may need to work across very different agency problems.
+    The prototype can therefore work with different agency problems
+    without requiring changes to the underlying source code.
     """
 
     print("\n" + "=" * 70)
@@ -32,44 +30,26 @@ def get_use_case_from_user():
         "you want to assess.\n"
     )
 
-    # Ask the user which organisation or agency is considering
-    # the AI solution.
     agency = input(
         "Agency or organisation: "
     ).strip()
 
-    # Ask for a short description of the AI technology or system.
     ai_system = input(
         "AI system or solution: "
     ).strip()
 
-    # Ask what problem the organisation wants the AI system to solve.
     purpose = input(
         "Purpose of the AI system: "
     ).strip()
 
-    # Ask what type of information the system will process.
-    #
-    # This may later help the prototype identify privacy,
-    # security and data-governance considerations.
     data = input(
         "Data used by the AI system: "
     ).strip()
 
-    # Ask the user to describe any risks or concerns they already
-    # know may be relevant.
-    #
-    # For V1, these terms also help guide the keyword-based
-    # retrieval process.
     concerns = input(
         "Known concerns or risks: "
     ).strip()
 
-    # Store the answers using the same structure as the original
-    # health-sector test scenario.
-    #
-    # This means I can reuse the retrieval and assessment functions
-    # I've already built without rewriting them.
     use_case = {
         "agency": agency,
         "ai_system": ai_system,
@@ -81,99 +61,203 @@ def get_use_case_from_user():
     return use_case
 
 
-def run_assessment(use_case):
+def build_semantic_query(use_case):
     """
-    Run the complete assurance pipeline for a new AI use case.
+    Build the query used to search the government assurance framework.
 
-    This connects the separate components I've developed so far:
+    I want the semantic retriever to understand:
 
-    1. retrieve relevant policy evidence,
-    2. classify that evidence into assurance areas,
-    3. build a structured assessment, and
-    4. generate a readable report.
+    - what the AI system does,
+    - why the organisation wants to use it, and
+    - what concerns have already been identified.
+
+    Because V3 uses semantic embeddings, the wording does not need
+    to exactly match terminology used in the government framework.
     """
 
-    # Retrieve the parts of the government AI assurance framework
-    # that appear most relevant to this use case.
-    evidence = gather_policy_evidence(
-        use_case=use_case,
-        policy_chunks=chunks,
+    query = (
+        f"{use_case['ai_system']} "
+        f"{use_case['purpose']} "
+        f"{use_case['concerns']}"
     )
 
-    # Group the retrieved evidence into the assurance categories
-    # used by the prototype.
-    # First, identify which assurance areas are relevant based on
-    # the characteristics and concerns of the actual use case.
-    relevant_categories = identify_relevant_categories(
-    use_case
-)
+    return query
 
-    # Then look for government policy evidence supporting those
-        # identified assurance areas.
-    categories = classify_evidence(
+
+def run_rag_assessment(use_case):
+    """
+    Run the complete V3 RAG assessment pipeline.
+
+    This connects the components I've developed across the project:
+
+    1. understand the supplied AI use case,
+    2. retrieve relevant government guidance using semantic search,
+    3. provide that evidence to a language model,
+    4. generate a structured assessment,
+    5. validate the model's source references,
+    6. attach the original evidence to each finding, and
+    7. generate an auditable Markdown report.
+    """
+
+    # ---------------------------------------------------------
+    # STEP 1: BUILD THE SEMANTIC QUERY
+    # ---------------------------------------------------------
+
+    query = build_semantic_query(
+        use_case
+    )
+
+    print(
+        "\nSearching the government assurance framework..."
+    )
+
+    # ---------------------------------------------------------
+    # STEP 2: RETRIEVE POLICY EVIDENCE
+    # ---------------------------------------------------------
+    #
+    # My local sentence-transformer model searches the framework
+    # based on similarity of meaning rather than exact keywords.
+
+    evidence = semantic_retrieve(
+        query=query,
+        top_k=6,
+    )
+
+    print(
+        f"Retrieved {len(evidence)} relevant policy sections."
+    )
+
+    print(
+        "\nGenerating evidence-grounded assessment..."
+    )
+
+    # ---------------------------------------------------------
+    # STEP 3: GENERATE THE LLM ASSESSMENT
+    # ---------------------------------------------------------
+    #
+    # Gemini receives the agency use case together with only the
+    # policy evidence retrieved by the semantic search component.
+
+    structured_assessment = generate_llm_assessment(
+        use_case=use_case,
+        evidence=evidence,
+    )
+
+    # ---------------------------------------------------------
+    # STEP 4: VALIDATE GENERATED SOURCE REFERENCES
+    # ---------------------------------------------------------
+    #
+    # I do not automatically trust citations generated by the
+    # language model.
+    #
+    # Every SOURCE_ID must correspond to a policy chunk that was
+    # actually retrieved and supplied to Gemini.
+
+    invalid_sources = validate_source_ids(
+        structured_assessment,
         evidence,
-        relevant_categories,
-)
-
-    # Build the structured assessment, including status,
-    # recommendations and supporting policy evidence.
-    assessment = build_assessment(
-        use_case=use_case,
-        categories=categories,
     )
 
-    return assessment
+    if invalid_sources:
+
+        print(
+            "\nWARNING: The language model referenced "
+            "invalid source IDs:"
+        )
+
+        for source_id in invalid_sources:
+
+            print(
+                f"  - {source_id}"
+            )
+
+        # Stop rather than generate a report containing citations
+        # that failed validation.
+        raise ValueError(
+            "Assessment stopped because source validation failed."
+        )
+
+    print(
+        "All generated source references passed validation."
+    )
+
+    # ---------------------------------------------------------
+    # STEP 5: ATTACH ORIGINAL POLICY EVIDENCE
+    # ---------------------------------------------------------
+    #
+    # A valid source ID proves that the cited chunk exists.
+    #
+    # I also want a human reviewer to be able to inspect the
+    # actual source material supporting each finding.
+
+    structured_assessment = attach_source_evidence(
+        structured_assessment,
+        evidence,
+    )
+
+    # ---------------------------------------------------------
+    # STEP 6: GENERATE THE FINAL REPORT
+    # ---------------------------------------------------------
+
+    report = generate_rag_markdown_report(
+        structured_assessment
+    )
+
+    output_path = save_rag_report(
+        report,
+        structured_assessment,
+    )
+
+    return (
+        structured_assessment,
+        output_path,
+    )
 
 
 # ---------------------------------------------------------
-# RUN THE COMPLETE PROTOTYPE
+# RUN THE COMPLETE V3 APPLICATION
 # ---------------------------------------------------------
 
 
 if __name__ == "__main__":
 
-    # Collect a new AI scenario from the user.
+    # Collect one AI scenario from the user.
     use_case = get_use_case_from_user()
 
-    print("\nAssessing use case...")
-
-    # Run the scenario through the complete assessment pipeline.
-    assessment = run_assessment(
+    # Run the scenario through the complete RAG pipeline.
+    structured_assessment, output_path = run_rag_assessment(
         use_case
     )
 
-    # Turn the structured result into a Markdown report.
-    report = generate_markdown_report(
-        assessment
-    )
+    # ---------------------------------------------------------
+    # DISPLAY A SHORT COMPLETION SUMMARY
+    # ---------------------------------------------------------
+    #
+    # The detailed assessment is stored in the generated Markdown
+    # report, so I only need a concise terminal summary here.
 
-    # Save the report into the outputs folder.
-    output_path = save_report(
-        report,
-        assessment,
-)
-
-    # Give the user a short summary of what the prototype found.
     print("\n" + "=" * 70)
-    print("ASSESSMENT COMPLETE")
+    print("RAG ASSESSMENT COMPLETE")
     print("=" * 70)
 
     print(
-        f"\nAgency: {assessment['agency']}"
+        f"\nAgency: {structured_assessment['agency']}"
     )
 
     print(
-        f"AI system: {assessment['ai_system']}"
+        f"AI system: {structured_assessment['ai_system']}"
     )
 
-    print("\nAssurance areas:")
-
-    for area in assessment["assurance_areas"]:
-        print(
-            f"  - {area['category']}: "
-            f"{area['status']}"
-        )
+    print(
+        f"\nFindings generated: "
+        f"{len(structured_assessment['findings'])}"
+    )
 
     print(
         f"\nReport saved to: {output_path}"
+    )
+
+    print(
+        "\nThe generated findings include the original "
+        "retrieved policy evidence for human verification."
     )

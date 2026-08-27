@@ -1,24 +1,30 @@
 # Public Sector AI Evaluation Lab
 
-A Python prototype for exploring how public-sector AI use cases can be assessed against government AI assurance guidance.
+A Python prototype exploring how public-sector AI use cases can be evaluated against government AI assurance guidance using **semantic retrieval, Retrieval-Augmented Generation (RAG), structured LLM analysis and traceable source evidence**.
 
-The project takes a proposed AI use case, identifies potentially relevant assurance areas, uses semantic retrieval to find supporting evidence from the **National Framework for the Assurance of Artificial Intelligence in Government**, and produces a structured assessment report with practical next actions and traceable source references.
+The application takes a proposed AI use case, retrieves relevant evidence from the **National Framework for the Assurance of Artificial Intelligence in Government**, provides that evidence to a language model for structured analysis, validates the model's source references, and generates a human-verifiable assessment report.
 
-The project was developed iteratively: V1 established a transparent keyword-based retrieval baseline, while V2 introduced sentence embeddings after testing showed that keyword matching could miss conceptually relevant policy evidence.
+The project was developed iteratively:
+
+- **V1** established a transparent keyword-based retrieval and rule-based assessment baseline.
+- **V2** introduced local sentence embeddings and semantic retrieval after testing exposed limitations in keyword matching.
+- **V3** introduced evidence-grounded LLM analysis, structured output, programmatic source validation and human-verifiable evidence attachment.
 
 ![Example AI assurance assessment](assets/western_power_assessment_preview.png)
 
 ## Why I Built This
 
-AI teams working across government may encounter very different problems across agencies.
+AI teams working across government may encounter very different technical and assurance problems across agencies.
 
-One engagement might involve evaluating an AI model, another may involve governance or documentation, while another may involve supporting the deployment or testing of an AI solution.
+One engagement might involve evaluating an AI model, another may involve governance or technical documentation, while another may involve testing, deploying or integrating an AI solution.
 
-I built this prototype to explore a practical question:
+I built this project to explore a practical question:
 
-> How could a technical team quickly perform an initial, transparent assessment of an unfamiliar public-sector AI use case while keeping the findings traceable to published government guidance?
+> How could a technical team rapidly perform an initial, evidence-grounded assessment of an unfamiliar public-sector AI use case while keeping AI-generated findings traceable to published government guidance?
 
-Rather than attempting to automate an assurance decision, the prototype acts as an initial decision-support tool. It highlights areas that may require further investigation and preserves the evidence used in the assessment.
+Rather than attempting to automate an assurance or compliance decision, the prototype acts as an initial decision-support tool.
+
+It combines automated retrieval and LLM-assisted analysis with explicit human-verification mechanisms.
 
 ## What the Prototype Does
 
@@ -30,114 +36,368 @@ The user provides:
 - data used by the system
 - known concerns or risks
 
-The prototype then:
+The V3 pipeline then:
 
 1. loads the government AI assurance framework
-2. cleans the extracted PDF text
-3. splits the document into overlapping chunks while preserving page metadata
-4. identifies assurance areas relevant to the supplied use case
-5. retrieves potentially relevant sections of the framework
-6. associates retrieved evidence with assurance areas
-7. provides predefined practical next actions
-8. generates a Markdown assessment report with source page references
+2. extracts and cleans the PDF text
+3. splits the framework into overlapping, page-aware chunks
+4. filters known non-substantive content such as contents and reference pages
+5. converts policy chunks into local sentence embeddings
+6. creates a semantic representation of the supplied AI use case
+7. retrieves the most conceptually relevant framework evidence
+8. supplies only the use case and retrieved evidence to an LLM
+9. requests a structured evidence-grounded assessment
+10. validates every LLM-generated source ID against the evidence actually retrieved
+11. attaches the original policy text to each generated finding
+12. generates an auditable Markdown assessment report
 
-## Current Assurance Areas
-
-The prototype considers five assurance areas:
-
-- Privacy and security
-- Reliability and testing
-- Human oversight
-- Accountability and governance
-- Transparency and explainability
-
-The prototype distinguishes between:
-
-- **Review required** — the use case triggered the assurance area and supporting policy evidence was retrieved.
-- **Relevant - evidence not retrieved** — the use case triggered the assurance area, but the current retrieval method did not find supporting evidence.
-- **Not triggered by supplied use case** — no indicators for the assurance area were identified from the information supplied.
-
-These statuses are intended to support further investigation. They are not compliance or deployment decisions.
-
-## Architecture
+## V3 Architecture
 
 ```text
-Government AI Assurance Framework (PDF)
-                |
-                v
-        Document extraction
-                |
-                v
-           Text cleaning
-                |
-                v
-     Page-aware text chunking
-                |
-                v
+Government AI Assurance Framework
+              |
+              v
+        PDF extraction
+              |
+              v
+         Text cleaning
+              |
+              v
+     Page-aware chunking
+              |
+              v
+ Non-substantive content filter
+              |
+              v
       Sentence embeddings
-                |
-                +-----------------------+
-                                        |
-User-supplied AI use case               |
-        |                               |
-        v                               |
-Identify relevant assurance areas       |
-        |                               |
-        +-------------------------------+
-                        |
-                        v
-              Semantic retrieval
-                        |
-                        v
-            Evidence classification
-                        |
-                        v
-             Structured assessment
-                        |
-                        v
-             Markdown report output
+              |
+              |
+              +-----------------------------+
+                                            |
+User-supplied AI use case                   |
+              |                             |
+              v                             |
+       Semantic query                       |
+              |                             |
+              +-----------------------------+
+                            |
+                            v
+                  Semantic retrieval
+                            |
+                            v
+               Relevant policy evidence
+                            |
+                            +
+                     AI use case
+                            |
+                            v
+                Evidence-grounded LLM
+                     analysis
+                            |
+                            v
+                  Structured JSON
+                            |
+                            v
+               Source-ID validation
+                            |
+                            v
+             Original evidence attached
+                            |
+                            v
+              Human-verifiable report
+```
+
+## Retrieval-Augmented Generation
+
+V3 uses a Retrieval-Augmented Generation workflow.
+
+Rather than asking a language model to assess an AI use case using unrestricted general knowledge, the application first retrieves relevant evidence from the government assurance framework.
+
+The LLM receives:
+
+```text
+AI use case
+     +
+semantically retrieved government evidence
+     ↓
+evidence-grounded analysis
+```
+
+The prompt instructs the model to:
+
+- use only the supplied framework evidence
+- avoid inventing legal, policy or technical requirements
+- avoid overstating obligations
+- identify when further review is required
+- return structured JSON
+- cite only source IDs supplied by the retrieval system
+
+The Python application then validates those source references before a report can be generated.
+
+## Human-Verifiable Evidence
+
+A valid-looking citation generated by an LLM is not automatically trustworthy.
+
+V3 therefore separates two checks.
+
+### 1. Source validation
+
+Every retrieved policy chunk receives a source identifier such as:
+
+```text
+page_24_chunk_2
+```
+
+If the LLM references a source that was never retrieved and supplied to it, the application detects the invalid reference and stops report generation.
+
+For example:
+
+```text
+LLM references:
+page_99_chunk_7
+
+Retrieved evidence:
+page_24_chunk_2
+page_28_chunk_3
+...
+
+Result:
+SOURCE VALIDATION FAILED
+```
+
+### 2. Human verification
+
+Even a valid source ID does not prove that the evidence supports the model's interpretation.
+
+The application therefore attaches the **original retrieved framework text** beneath each generated finding.
+
+A reviewer can inspect:
+
+```text
+Generated finding
+      ↓
+Why it matters
+      ↓
+Recommended action
+      ↓
+Original government evidence
+      ↓
+Page + chunk reference
+```
+
+This keeps human review explicitly inside the assessment workflow.
+
+## Example: Western Power
+
+One test scenario considers a fictional application of AI within Western Power.
+
+**AI system**
+
+An AI model predicting potential failures in electricity network assets.
+
+**Purpose**
+
+Identify assets at higher risk of failure to support maintenance planning.
+
+**Data**
+
+Historical asset condition, maintenance and failure data.
+
+**Known concerns**
+
+Safety, reliability, false predictions and human oversight.
+
+The V3 RAG pipeline produced tailored findings covering areas including:
+
+- governance and risk management
+- data governance
+- human oversight and staff capability
+- system monitoring
+- standards alignment
+
+Each generated finding includes the underlying government-framework evidence used during the assessment.
+
+See:
+
+```text
+examples/example_western_power_rag_assessment.md
+```
+
+## V1 → V2: Improving Retrieval
+
+The first version of the prototype used transparent keyword matching.
+
+Testing identified an important limitation.
+
+In a public-document summarisation scenario, `accuracy` was supplied as the primary concern.
+
+The prototype correctly identified **Reliability and testing** as relevant, but V1 keyword retrieval returned:
+
+> No policy evidence retrieved.
+
+Relevant sections of the framework instead discussed concepts such as:
+
+- incorrect outputs
+- reliability
+- testing
+- technical validation
+- human validation
+
+The exact word `accuracy` was not required.
+
+### V2 semantic retrieval
+
+V2 introduced sentence embeddings using a locally running Sentence Transformer model.
+
+Both retrieval approaches were tested against exactly the same query:
+
+```text
+accuracy
+```
+
+**V1 — keyword retrieval**
+
+```text
+No policy evidence retrieved.
+```
+
+**V2 — semantic retrieval**
+
+High-ranking results included framework guidance addressing:
+
+- incorrect AI outputs
+- reliability
+- testing
+- technical validation
+- human validation
+
+This demonstrated that semantic retrieval could identify conceptually related evidence even when the user's terminology differed from the framework.
+
+The original keyword retriever remains in the repository as a baseline.
+
+`compare_retrieval.py` provides a direct comparison between the two approaches.
+
+## V2 → V2.1: Improving Evidence Quality
+
+Testing semantic retrieval revealed another issue.
+
+The embedding model occasionally returned chunks from the framework's table of contents or resources section because those pages contained terminology semantically related to the query.
+
+Although mathematically similar, these sections were not useful substantive evidence.
+
+V2.1 introduced a transparent preprocessing filter that removes known non-substantive sections before embeddings are searched.
+
+This illustrates an important design principle in the project:
+
+> Improving an AI system does not always require a more sophisticated model. Improving the information available to the model can also improve the result.
+
+## V2 → V3: Moving From Retrieval to RAG
+
+V2 could identify relevant government evidence but recommendations were still generated using predefined rules.
+
+For example:
+
+```text
+Reliability and testing
+→ predefined testing recommendation
+```
+
+That approach was transparent but could not adapt its recommendations deeply to different technical contexts.
+
+V3 introduced an LLM after the semantic retrieval stage.
+
+The application now follows:
+
+```text
+Agency AI problem
+        ↓
+Semantic retrieval
+        ↓
+Relevant government evidence
+        ↓
+Evidence-grounded LLM analysis
+        ↓
+Structured findings
+        ↓
+Source validation
+        ↓
+Human-verifiable report
+```
+
+This allows recommendations to reflect the specific AI system being assessed while remaining linked to retrieved government evidence.
 
 ## Project Structure
 
 ```text
 public-sector-ai-evaluation-lab/
 |
+|-- assets/
+|   `-- western_power_assessment_preview.png
+|
 |-- data/
-|   `-- government AI assurance framework
+|   `-- local government assurance framework
+|
+|-- examples/
+|   |-- example_department_of_communities_ai_assessment.md
+|   |-- example_western_power_ai_assessment.md
+|   `-- example_western_power_rag_assessment.md
 |
 |-- outputs/
-|   `-- generated assessment reports
+|   `-- locally generated assessment reports
 |
 |-- src/
 |   |-- clean_text.py
 |   |-- load_document.py
 |   |-- chunk_document.py
 |   |-- retrieve.py
+|   |-- semantic_retrieve.py
+|   |-- compare_retrieval.py
 |   |-- evaluate_use_case.py
 |   |-- assess_use_case.py
 |   |-- generate_report.py
+|   |-- llm_assessment.py
+|   |-- generate_rag_report.py
 |   `-- run_assessment.py
 |
 |-- tests/
-|-- requirements.txt
-`-- README.md
+|   `-- test_assessment.py
+|
+|-- .gitignore
+|-- README.md
+`-- requirements.txt
 ```
 
 ## Running the Prototype
 
-Create and activate a Python virtual environment and install the required dependencies.
+### 1. Create a Python environment
+
+Create and activate a virtual environment using your preferred method.
+
+Install the dependencies:
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-Run:
+### 2. Configure the Gemini API key
+
+V3 uses the Gemini API for the generative stage.
+
+Create a local `.env` file in the project root:
+
+```text
+GEMINI_API_KEY=your_api_key_here
+```
+
+The `.env` file is excluded from Git and should never be committed to the repository.
+
+### 3. Run the application
 
 ```bash
 python src/run_assessment.py
 ```
 
-The prototype will prompt for information about the AI use case.
+The application prompts for the AI use case.
 
 Example:
 
@@ -155,95 +415,140 @@ Data used by the AI system:
 Historical asset condition, maintenance and failure data
 
 Known concerns or risks:
-reliability safety accuracy testing monitoring explainability accountability
+safety reliability false predictions human oversight
 ```
 
-A Markdown assessment is then generated in the `outputs` directory.
+The pipeline then performs semantic retrieval, evidence-grounded LLM analysis, source validation and report generation.
 
-## Testing and Iteration
+A Markdown report is saved in:
 
-I deliberately started with simple, transparent logic so I could inspect how each stage of the pipeline behaved before introducing more complex AI components.
+```text
+outputs/
+```
 
-During development, I tested the prototype against contrasting scenarios.
+## Testing
 
-### V1 to V2: Improving Retrieval
+The project includes automated tests covering important behaviours introduced during development.
 
-The first version of the prototype used transparent keyword matching to retrieve evidence from the assurance framework.
+Run:
 
-Testing identified an important limitation.
+```bash
+python -m pytest -v
+```
 
-In a public-document summarisation scenario, `accuracy` was supplied as the primary concern. The prototype correctly identified **Reliability and testing** as a relevant assurance area, but V1 keyword retrieval returned no supporting policy evidence.
+Current tests cover:
 
-This happened because relevant sections of the framework discussed concepts such as **incorrect outputs, reliability, testing and validation** rather than necessarily using the exact word `accuracy`.
+### Assurance classification
 
-V2 introduced semantic retrieval using sentence embeddings.
+An explicit `accuracy` concern should trigger **Reliability and testing** rather than unrelated assurance areas.
 
-I tested both retrieval approaches against the same query:
+### Missing evidence
 
-**Query:** `accuracy`
+Failure to retrieve supporting evidence must not automatically be interpreted as evidence that no risk exists.
 
-**V1 — keyword retrieval**
+### Semantic retrieval
 
-> No policy evidence retrieved.
+The query:
 
-**V2 — semantic retrieval**
+```text
+accuracy
+```
 
-The highest-ranked results included:
+should retrieve framework material containing conceptually related evidence such as:
 
-- guidance requiring incorrect AI outputs to be flagged and addressed
-- guidance covering reliability, testing, technical validation and human validation
+- incorrect outputs
+- reliability
+- testing
+- validation
 
-This demonstrated that semantic retrieval could identify conceptually relevant evidence even when the terminology used by the user differed from the terminology used in the framework.
+This protects the retrieval improvement that motivated V2.
 
-The original keyword retriever remains in the repository as a baseline, and `compare_retrieval.py` can be used to compare the two approaches.
+### Valid LLM source references
 
-This iteration reflects a deliberate design approach: introduce additional technical complexity only where testing demonstrates that it addresses an observed limitation.
+A source ID corresponding to evidence genuinely supplied to the LLM should pass validation.
 
+### Invented LLM source references
 
-### Health AI agent
+A source ID that was not retrieved should be detected by the application.
 
-A fictional health-sector use case involved a generative AI agent answering staff questions from internal clinical and operational policy documents.
+For example:
 
-This scenario raised considerations including privacy, security, reliability, human oversight and accountability.
+```text
+page_99_chunk_7
+```
 
-### Infrastructure predictive AI
+must not be accepted simply because it looks like a valid citation.
 
-A second scenario considered an AI model predicting potential electricity-network asset failures.
+At the current V3 checkpoint:
 
-This tested whether the same assessment pipeline could be applied to a substantially different domain and AI capability without changing the underlying code.
+```text
+5 tests passed
+```
 
-### Public-document summarisation
-
-A lower-risk scenario considered an AI tool summarising publicly available government reports, with accuracy supplied as the primary concern.
-
-Testing this scenario exposed an important limitation in the initial design: assurance categories were being inferred primarily from retrieved policy text.
-
-This meant an explicitly supplied concern such as `accuracy` could be missed if the initial keyword retrieval did not return a reliability-related policy section.
-
-I therefore separated:
-
-1. **identification of assurance areas from the characteristics of the use case**, and
-2. **retrieval of policy evidence supporting those areas**.
-
-This improved the transparency of the assessment and allowed the prototype to distinguish between an area that was not triggered and an area that was relevant but lacked retrieved evidence.
+The tests deliberately avoid making live Gemini calls so routine testing remains deterministic and does not consume API usage.
 
 ## Design Decisions
 
-### Traceability
+### Modular architecture
 
-Page and chunk metadata are retained throughout the pipeline so assessment findings can be traced back to their source material.
+The project separates:
 
-### Transparent and modular logic
+- document processing
+- retrieval
+- assessment
+- LLM analysis
+- source validation
+- report generation
 
-Assurance-area identification remains deliberately rule-based so the factors triggering each category are transparent and easy to inspect.
+This makes individual components replaceable without redesigning the entire pipeline.
 
-Policy retrieval evolved from V1 keyword matching to V2 semantic retrieval using sentence embeddings. The original keyword retriever remains available as a baseline for comparison.
+For example, V1 keyword retrieval could be replaced by V2 semantic retrieval without rebuilding the reporting components.
+
+### Local semantic retrieval
+
+Sentence embeddings are generated locally using `sentence-transformers`.
+
+The entire source framework therefore does not need to be sent to an external language model.
+
+Only the use-case information and a small number of retrieved evidence chunks are supplied during the generative stage.
+
+### Structured LLM output
+
+Gemini is instructed to return structured JSON rather than controlling the final report format.
+
+Python remains responsible for validating, processing and presenting the result.
+
+### Source validation
+
+The application does not automatically trust citations generated by the language model.
+
+Every generated source ID is checked against evidence genuinely retrieved and supplied to the model.
 
 ### Human review
 
-The prototype does not make automated approval, compliance or deployment decisions.
+Programmatic citation validation proves that a cited source exists within the retrieved evidence.
 
-A failure to retrieve evidence is also not interpreted as evidence that no risk exists.
+It does **not** prove that the model interpreted the source correctly.
+
+The original policy evidence is therefore included in the generated report for human verification.
+
+## Technology
+
+Current V3:
+
+- Python
+- pypdf
+- sentence-transformers
+- PyTorch
+- local sentence embeddings
+- semantic similarity retrieval
+- Google Gemini API
+- Retrieval-Augmented Generation (RAG)
+- structured JSON LLM output
+- programmatic source validation
+- Markdown report generation
+- python-dotenv
+- pytest
 
 ## Current Limitations
 
@@ -251,58 +556,48 @@ This is an exploratory prototype rather than a production assurance system.
 
 Current limitations include:
 
-- assurance categories are identified using predefined rule-based indicators
-- semantic retrieval may still miss or imperfectly rank relevant policy material
+- assurance assessment depends on the information supplied by the user
+- semantic retrieval may miss or imperfectly rank relevant evidence
 - semantic similarity does not guarantee substantive relevance
-- retrieved chunks may be only partially relevant
-- recommendations are predefined rather than generated dynamically
-- the current prototype uses one primary assurance framework
-- no automated technical testing of an actual AI model or agent is performed
-- no production deployment or authentication layer is included
+- the current retrieval corpus uses one primary government AI assurance framework
+- only a small number of top-ranked chunks are supplied to the LLM
+- language models can still misinterpret or overstate retrieved evidence
+- source-ID validation confirms that a cited chunk exists but does not automatically prove that it supports the generated claim
+- human verification remains necessary
+- no automated technical testing of an actual AI model or agent is currently performed
+- no production authentication or access-control layer is included
+- no production cloud deployment is currently included
 
-Outputs should therefore be treated as prompts for further investigation rather than authoritative assurance findings.
+Generated outputs should be treated as prompts for further investigation rather than authoritative compliance, legal, safety or deployment findings.
 
 ## Future Development
 
 Potential next iterations include:
 
-- vector-based document search
-- support for multiple government policies and technical standards
-- LLM-assisted analysis grounded in retrieved evidence
 - automated evaluation of AI-agent responses
+- grounding-quality evaluation for generated findings
+- reranking of semantically retrieved evidence
+- configurable similarity thresholds
+- support for multiple government policies and technical standards
+- vector-based document storage
+- improved evidence citation and provenance
 - configurable assurance frameworks
-- improved source citation
-- automated test suites
+- additional automated RAG evaluation tests
+- provider-independent LLM interfaces
 - containerisation using Docker
 - deployment into a cloud or controlled environment
-- a lightweight web interface
-
-## Technology
-
-Current V2:
-
-- Python
-- pypdf
-- sentence-transformers
-- PyTorch
-- sentence embeddings
-- semantic similarity retrieval
-- rule-based assurance classification
-- Markdown report generation
-- pytest
-
-The architecture is intentionally modular.
-
-V1's keyword retriever remains available as a baseline, while V2 uses a locally running sentence-transformer model to retrieve evidence based on semantic similarity.
-
-The embedding model runs locally, so the current prototype does not require a paid LLM or embedding API.
+- lightweight web interface
 
 ## Status
 
-**V2 — semantic retrieval prototype**
+**V3 — evidence-grounded RAG prototype**
 
-V1 established the end-to-end assessment pipeline using transparent keyword retrieval.
+V1 established the end-to-end assessment pipeline using transparent keyword retrieval and deterministic recommendations.
 
-V2 introduces local sentence embeddings and semantic retrieval, improving the prototype's ability to find relevant government guidance when the wording of an AI use case differs from the terminology used in the source framework.
+V2 introduced local sentence embeddings and semantic retrieval after testing demonstrated that keyword matching could miss conceptually relevant government evidence.
+
+V2.1 improved retrieval quality by filtering known non-substantive document sections.
+
+V3 introduces evidence-grounded LLM analysis using semantically retrieved framework material. The LLM returns structured findings, generated source references are validated programmatically, and the original source evidence is attached to each finding for human verification.
 
 The project is intended as a learning and experimentation environment for public-sector AI evaluation, assurance and responsible implementation.
