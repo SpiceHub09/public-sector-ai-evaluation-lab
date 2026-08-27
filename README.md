@@ -4,6 +4,8 @@ A lightweight prototype for exploring how public-sector AI use cases can be asse
 
 The project takes a proposed AI use case, identifies potentially relevant assurance areas, retrieves supporting evidence from the **National Framework for the Assurance of Artificial Intelligence in Government**, and produces a structured assessment report with practical next actions and source references.
 
+![Example AI assurance assessment](assets/health_assessment_preview.png) 
+
 ## Why I Built This
 
 AI teams working across government may encounter very different problems across agencies.
