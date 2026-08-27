@@ -29,9 +29,57 @@ model = SentenceTransformer(
 # framework together with its original page and chunk number.
 #
 # I only need the text itself when creating embeddings.
+# ---------------------------------------------------------
+# FILTER NON-SUBSTANTIVE CONTENT
+# ---------------------------------------------------------
+#
+# During testing, semantic retrieval occasionally returned chunks
+# from the table of contents or resources section.
+#
+# These chunks may be semantically similar to a query because they
+# contain relevant terminology, but they are not the substantive
+# policy guidance I want to use as assessment evidence.
+#
+# For V2.1, I'll apply a small transparent filter before creating
+# embeddings.
+
+
+def is_substantive_chunk(chunk):
+    """
+    Decide whether a policy chunk is suitable for retrieval.
+
+    This is deliberately a simple document-specific filter.
+
+    I'm excluding known contents and resources pages because they
+    describe or reference policy material rather than providing the
+    substantive guidance I want the assessment to rely on.
+    """
+
+    page_number = chunk["page_number"]
+
+    # Page 3 contains the table of contents.
+    if page_number == 3:
+        return False
+
+    # Pages 32 onwards contain the resources/reference material.
+    if page_number >= 32:
+        return False
+
+    return True
+
+
+# Keep only substantive policy chunks.
+searchable_chunks = [
+    chunk
+    for chunk in chunks
+    if is_substantive_chunk(chunk)
+]
+
+
+# Extract the text that will be converted into embeddings.
 chunk_texts = [
     chunk["text"]
-    for chunk in chunks
+    for chunk in searchable_chunks
 ]
 
 
@@ -80,8 +128,8 @@ def semantic_retrieve(query, top_k=5):
 
     for index, similarity in enumerate(similarities):
 
-        chunk = chunks[index]
-
+        chunk = searchable_chunks[index]    
+        
         scored_chunks.append(
             {
                 "score": float(similarity),
