@@ -222,6 +222,29 @@ See:
 ```text
 examples/example_western_power_rag_assessment.md
 ```
+## Public Health AI Assurance Example
+
+To test the assurance workflow in a public-health context, I added a scenario involving an **Australian public health agency** considering a generative AI assistant to help staff find and summarise information from communicable-disease policies and operational guidance.
+
+The proposed system is intended to help public-health staff locate relevant guidance quickly and support consistent interpretation of policy information.
+
+The assessment identified considerations across:
+
+- human oversight and accountability
+- data governance and quality
+- protection of sensitive and personal information
+- staff capability and training
+
+A particular concern is the quality and currency of the information available to the AI system. Outdated, unauthenticated or inaccurate public-health guidance could affect the reliability of generated outputs.
+
+The assessment also demonstrates an important behaviour of the evidence-grounded workflow: where the retrieved framework evidence was insufficient to support a conclusion about technical source traceability, conflicting guidance or specific security architecture, the generated assessment identified those areas for **further review** rather than inventing requirements.
+
+This example complements the technical agent-testing work in my separate AI Agent Evaluation Lab, where a document-grounded assistant is benchmarked against a real Australian national communicable-disease guideline.
+
+See:
+
+```text
+examples/example_public_health_ai_assurance_assessment.md
 
 ## V1 → V2: Improving Retrieval
 
